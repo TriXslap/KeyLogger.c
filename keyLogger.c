@@ -6,8 +6,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-//checking github
-
 #define DEVICE_INPUT_PATH "/dev/input/event2"
 
 char *key_map[] = {[KEY_RESERVED] = "[RESERVED]",
