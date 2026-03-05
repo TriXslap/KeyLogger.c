@@ -1,87 +1,98 @@
 # KeyLogger.c
 
-A simple keylogger project for Linux systems written in C. This program captures keyboard input events directly from the device file, translates them into human-readable characters, and logs them to a file. It is designed to run as a background daemon process.
+A keylogger for Linux written in C — a self-taught learning project built to get hands-on experience with low-level Linux concepts like input devices, signals, file descriptors, and `systemd` services.
 
-## Disclamer
-The project is still in progress, and I intend to add a few details before finishing it(running on boot, finding the keyboard device alone, trying to keep Root privilege...)
+This is still a work in progress, and I'm actively learning as I go. Feel free to look through the code, suggest improvements, or use it as a reference for your own learning!
 
-## Features
+---
 
--   **Daemonization**: Runs silently in the background, detached from the terminal.
--   **Keystroke Logging**: Captures all key presses, including alphanumeric characters and special keys like `[SHIFT]`, `[ENTER]`, and `[BACKSPACE]`.
--   **Shift & Caps Lock Handling**: Correctly logs uppercase characters and symbols when the Shift or Caps Lock keys are active.
--   **Stealthy Log File**: Saves the captured keystrokes to a hidden file in the `/tmp` directory (`/tmp/.keylog.txt`).
--   **Graceful Shutdown**: Uses signal handling to close files and exit cleanly upon receiving `SIGINT` or `SIGTERM`.
+## What I Learned Building This
 
-## Prerequisites
+This project ended up being a great way to explore a bunch of C and Linux concepts I hadn't worked with before:
 
--   A Linux-based operating system.
--   Root privileges are required to read from the `/dev/input/` device files.
--   `gcc` compiler to build the program from source.
+- Reading raw input events from `/dev/input/` using `input_event` structs
+- Parsing `/proc/bus/input/devices` to find the right keyboard device at runtime
+- Writing and registering a `systemd` service so the program survives reboots
+- Handling Unix signals (`SIGINT`, `SIGTERM`) for a clean shutdown
+- Working with file descriptors, `fopen`, `fork`, and process management
 
-## Setup and Usage
+---
 
-### 1. Identify Your Keyboard Device
+## How It Works
 
-The program is hardcoded to use `/dev/input/event2`. This may not be correct for your system. You need to find the event file corresponding to your keyboard.
+### First Run — Auto-Install
+When you run the program for the first time, it checks if it's already installed at `/usr/local/bin/KeyLogger`. If not, it will:
 
-You can list all input devices and their handlers with the following command:
+1. Copy itself to `/usr/local/bin/KeyLogger`
+2. Create a `systemd` service file at `/etc/systemd/system/KeyLogger.service`
+3. Enable and start the service automatically via `systemctl`
 
-```bash
-grep -E 'Handlers|EV' /proc/bus/input/devices
-```
+From that point on, the keylogger starts on every boot by itself — no need to run it again manually.
 
-Look for the device with `EV=120013` (a common event mask for keyboards) and note its `eventX` handler. Then, update the `DEVICE_INPUT_PATH` macro in `keyLogger.c` with the correct path.
+### Keyboard Device Detection
+Instead of hardcoding a device path (which would break on different machines), the program reads `/proc/bus/input/devices` and looks for a device with the event mask `EV=120013` — the standard identifier for keyboards on Linux. It then builds the correct `/dev/input/eventX` path on its own.
 
-For example, if your keyboard is `event4`, change the line to:
-```c
-#define DEVICE_INPUT_PATH "/dev/input/event4"
-```
+### Keystroke Logging
+The program reads raw `input_event` structs from the keyboard device in a loop and translates key codes into readable characters. It correctly handles:
 
-### 2. Compile the Program
+- All standard letters, numbers, and symbols
+- `[SHIFT]` (left & right) for uppercase letters and symbols like `!`, `@`, `#`, etc.
+- `[CAPS LOCK]` toggling
+- Special keys like `[ESC]`, `[TAB]`, `[BACKSPACE]`, `[LCTRL]`, and `[ENTER]`
 
-Use `gcc` to compile the source code into an executable file named `KeyLogger`.
+Everything gets written to `/var/log/.keylog.txt` with buffering turned off, so keystrokes hit the file immediately.
 
+### Clean Shutdown
+When the program receives a `SIGINT` or `SIGTERM` signal, it logs a termination message (including the signal number) to the file, closes everything properly, and exits.
+
+---
+
+## Requirements
+
+- A Linux system with `systemd`
+- Root privileges (required to access `/dev/input/` device files)
+- `gcc` to compile
+
+---
+
+## Build & Usage
+
+### Compile
 ```bash
 gcc keyLogger.c -o KeyLogger
 ```
 
-### 3. Run the Keylogger
-
-Execute the compiled program with `sudo` to grant it the necessary root privileges.
-
+### First Run
 ```bash
 sudo ./KeyLogger
 ```
 
-The program will fork into the background, and you can continue using your terminal.
+That's it! The program installs itself and sets up the service. You won't need to run it manually again.
 
-### 4. View the Logs
-
-The keystrokes are logged to `/tmp/.keylog.txt`. You can view the contents of this file at any time.
-
+### View the Logs
 ```bash
-cat /tmp/.keylog.txt
-```
-To monitor the log file in real-time:
-```bash
-tail -f /tmp/.keylog.txt
+cat /var/log/.keylog.txt
 ```
 
-### 5. Stop the Keylogger
-
-To stop the keylogger, you need to find its Process ID (PID) and send it a termination signal.
-
+Or watch it live:
 ```bash
-# Find the PID
-ps aux | grep KeyLogger
-
-# Terminate the process using its PID
-sudo kill <PID>
+tail -f /var/log/.keylog.txt
 ```
 
-Upon termination, the process will log a "Process Terminated" message to the log file and shut down cleanly.
+### Managing the Service
+```bash
+# Check if it's running
+sudo systemctl status KeyLogger.service
+
+# Stop it
+sudo systemctl stop KeyLogger.service
+
+# Remove it from startup
+sudo systemctl disable KeyLogger.service
+```
+
+---
 
 ## Disclaimer
 
-This tool is intended for educational and research purposes only. Using this keylogger on any computer without the owner's explicit permission is illegal and unethical. The developer is not responsible for any malicious use of this software.
+This project was built purely for **educational purposes** as part of my learning journey. Running this on any machine without the owner's explicit permission is illegal and unethical. Please use it responsibly.
