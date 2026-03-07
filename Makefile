@@ -8,4 +8,4 @@ keyMaps.o: keyMaps.c keyMaps.h
 	gcc -c keyMaps.c -o keyMaps.o
 
 clean:
-	rm -f keyLogger.o keyMaps.o KeyLogger
+	rm -f keyLogger.o keyMaps.o

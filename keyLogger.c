@@ -91,7 +91,7 @@ void readingDevicesFile(){
     }
 
     if (strstr(buffer, "EV=120013")) {
-      strncat(DEVICE_INPUT_PATH, temp_eventX, 52);
+      strncat(DEVICE_INPUT_PATH, temp_eventX, (sizeof(DEVICE_INPUT_PATH) - strlen(DEVICE_INPUT_PATH)) - 1);
     }
   }
 
